@@ -784,6 +784,14 @@ html.night-mode .chip.sel .seat{color:#fff!important}
 .chip.dis{opacity:1;color:var(--muted);background:transparent;border-style:dashed}
 .chip.dis .seat{color:var(--muted);background:transparent;box-shadow:inset 0 0 0 1.5px var(--line)}
 html.night-mode .chip.dis{color:var(--muted)}
+
+/* ===== 3.5: правила стола ===== */
+.rules{margin:12px 0 4px;padding-left:22px;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.5}
+.rules b{color:var(--accent-ink)}
+.marks{list-style:none;margin:8px 0 16px;display:flex;flex-direction:column;gap:6px}
+.marks li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 14px;border-radius:12px;background:var(--soft);font-size:16px;font-weight:700}
+.marks li b{font-size:13px;color:var(--muted);font-weight:700;white-space:nowrap}
+#rulesOverlay .glass>button{position:static;box-shadow:none}
 </style>
 </head>
 <body>
@@ -1107,6 +1115,42 @@ function soundSync(){
   else if(st==="over") sfx(G.winner==="Мирные жители"?"winTown":"winDark");
 }
 document.addEventListener("visibilitychange",()=>{ try{ if(!SND.ctx) return; if(document.visibilityState==="hidden") SND.ctx.suspend(); else if(SND.mode!=="off") SND.ctx.resume(); }catch(e){} });
+
+// ===== Правила стола: что говорить вслух и что можно менять =====
+const TABLE_RULES=[
+  "<b>Карточка — секрет.</b> Держите её текстом вниз, читайте, прикрыв рукой. Никому не показывайте.",
+  "<b>Знакомство.</b> Назовите имя персонажа и одной фразой скажите, где были той ночью. Текст с карточки вслух не читайте. Профессию можно не называть или назвать любую.",
+  "<b>Врать можно всем:</b> о профессии, алиби, примете и роли. Ведущий ничего не подтверждает и не опровергает.",
+  "<b>Приметы.</b> Ведущий огласит список примет без имён. У приметы может быть двойник. Свою примету можно не называть и отрицать. Если на вашей карточке примета «нет», можете назвать своей любую примету из списка.",
+  "<b>Выбывший</b> отдаёт карточку ведущему, не переворачивая. Роли выбывших раскрываются только в конце игры."
+];
+const TELL_NAMES={
+  plague:{"иномарка":"серая машина","чернила":"зелёные чернила","полынь":"полынь","хромота":"хромота","часы":"золотые часы","шарф":"красный шарф"},
+  club:{"роза":"цветы","перстень":"золотой перстень","пиджак":"белый пиджак","туфли":"красные туфли","трость":"трость","перчатки":"чёрные перчатки"}
+};
+function marksInPlay(){
+  let sc=SC(); if(!G||!sc.cast||!G.comp) return null;
+  let ids=G.castIds||castIds(G.comp,sc); if(!ids) return null;
+  let names=TELL_NAMES[curScenId()]||{}, cnt={};
+  sc.cast.filter(c=>ids.includes(c.id)).forEach(c=>(c.tells||[]).forEach(t=>{ cnt[t]=(cnt[t]||0)+1; }));
+  return Object.keys(cnt).map(t=>{
+    let one=sc.cast.find(c=>c.tells&&c.tells.length===1&&c.tells[0]===t);
+    return {name:names[t]||(one&&one.mark)||t, n:cnt[t]};
+  });
+}
+function holders(n){ return n===1?"у одного":n===2?"у двоих":n===3?"у троих":"у "+n; }
+function showRules(){
+  if(document.getElementById("rulesOverlay")) return;
+  let m=marksInPlay();
+  let h='<div id="rulesOverlay" class="ovl" role="dialog" aria-modal="true"><div class="glass" style="max-width:600px;margin:10px auto"><h1>Правила стола</h1><p class="muted">Зачитайте вслух перед первой ночью.</p><ol class="rules">'+TABLE_RULES.map(r=>'<li>'+r+'</li>').join("")+'</ol>';
+  if(m&&m.length){
+    h+='<h2>Приметы в этой партии</h2><p class="muted">Огласите без имён. Похожие приметы здесь названы одинаково: так их и читайте.</p><ul class="marks">'+m.map(x=>'<li><span>'+esc(x.name)+'</span><b>'+holders(x.n)+'</b></li>').join("")+'</ul>';
+  } else if(SC().cast){
+    h+='<p class="muted" style="margin:12px 0">Список примет появится, когда вы выберете состав ролей.</p>';
+  }
+  h+='<button class="primary" onclick="document.getElementById(\'rulesOverlay\').remove()">Закрыть</button></div></div>';
+  document.body.insertAdjacentHTML("beforeend",h);
+}
 
 let G = null;
 
@@ -1452,6 +1496,7 @@ function renderStart(app){
   h+='<button class="ghost" onclick="importSave()">Импорт сохранения</button>';
   h+='<h2 style="text-align:left">Сюжет игры</h2><div class="scen-grid">'+Object.keys(SCEN).map(id=>'<div class="scen-card'+(id===SCEN_SEL?' sel':'')+'" data-t="'+id+'" role="button" tabindex="0" aria-pressed="'+(id===SCEN_SEL)+'" onclick="pickScenario(\''+id+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();pickScenario(\''+id+'\')}"><span class="scen-name">'+(SCEN[id].chip||SCEN[id].name)+'</span><span class="scen-sw"><i></i><i></i><i></i></span></div>').join("")+'</div>';
   if(SCEN[SCEN_SEL].intro) h+='<button class="ghost" onclick="showIntro()">Завязка выбранного сюжета</button>';
+  h+='<button class="ghost" onclick="showRules()">Правила стола</button>';
   h+='<button class="ghost" onclick="showHelp()">Памятка ведущему</button>';
   h+='<button class="ghost" onclick="cycleSound()">'+SND_LABEL[SND.mode]+'</button>';
   h+='</div>';
@@ -1561,6 +1606,7 @@ function renderRoles(app){
   let h='<h1>Раздача ролей</h1>';
   h+='<div class="glass"><p class="muted">Назначьте каждую роль игроку. Мирные жители назначаются автоматически всем оставшимся.</p>';
   if(!allAssigned) h+='<button class="primary" style="margin:12px 0 0" onclick="randomRoles()">Раздать оставшиеся случайно</button>';
+  h+='<button class="ghost" style="margin:10px 0 0" onclick="showRules()">Правила стола и приметы</button>';
   h+='</div>';
 
   h+=castCard();
@@ -1926,6 +1972,7 @@ function bottomNav(){
     '<button class="ghost small" onclick="showTable()">Стол</button>'+
     '<button class="ghost small" onclick="openHistory()">История</button>'+
     '<button class="ghost small" onclick="showHelp()">Памятка</button>'+
+    '<button class="ghost small" onclick="showRules()">Правила</button>'+
     (SC().intro?'<button class="ghost small" onclick="showIntro()">Завязка</button>':'')+
     (night?'<button class="ghost small" onclick="toggleDim()">'+(NIGHT_DIM?'Ярче':'Темнее')+'</button>':'')+
     '<button class="ghost small" onclick="cycleSound()">'+SND_LABEL[SND.mode]+'</button>'+
@@ -1958,9 +2005,9 @@ const P_PAGES = [
    n:"Примет нет, это завязка. Таксист Платонов слышал от Веры числа «сорок и тридцать один»."},
   {t:"Ночью у хранилища пискнула карта. Шаги тяжёлые, одна нога подволакивается. Свет я не включала.",
    n:"Подходят Лукин (мафия) и Зуев (маньяк): оба хромают."},
-  {t:"На проходной стояла серая иномарка с аптечной наклейкой на стекле. Водитель из машины не вышел.",
+  {t:"На проходной стояла серая машина. Водитель из неё не вышел.",
    n:"Подходят Окунев (мафия) и Ким (мирный): у обоих серая машина."},
-  {t:"Бумагу о «списании» подписали задним числом. Подпись зелёными чернилами, такое перо я видела в бухгалтерии.",
+  {t:"Бумагу о «списании» подписали задним числом. Подпись зелёными чернилами.",
    n:"Подходят Штерн (мафия) и Шадрина (мирная): у обеих зелёное."},
   {t:"Во дворе женщина в красном шарфе передавала папку мужчине с золотыми часами. Кажется, они считают ампулы. Не хочу верить. Завтра отнесу в прокуратуру.",
    n:"Красный шарф: Боброва (мафия) и Хромова (мирная). Золотые часы: Ряжский (мафия) и Нечаев (мирный)."}
@@ -1973,7 +2020,7 @@ const P_RESERVE = [
 const P_NIGHT_SAY = {
   lover:"Просыпается Любовница. К кому она зайдёт этой ночью?",
   mafia:"Просыпается «Тихая комиссия» и тот, кто числится среди неё своим. Выберите, кто знает слишком много.",
-  maniac:"Просыпается тот, кто собирает полынь. Кого он очистит?",
+  maniac:"Просыпается тот, кто оставляет полынь. Кого он очистит?",
   doctor:"Просыпается Доктор. Кого вы осмотрите и не отойдёте от кровати до утра?",
   sheriff:"Просыпается Следователь. Чью дверь вы проверите? Ответ покажите жестом."
 };
@@ -2011,18 +2058,18 @@ const C_PAGES = [
 const C_RESERVE = [
   {t:"Книгу №2 нашли не в сейфе. Накануне Тихомиров перепрятал её и сказал бармену: «Она там, где никто не станет искать».", n:"Запасная карточка. Подтолкнуть мирных к поиску книги."},
   {t:"Врач осмотрел последнее тело: человека убили до того, как он «упал». Следы борьбы аккуратно убраны.", n:"Запасная карточка."},
-  {t:"На месте гибели лежит лепесток чёрной розы. Такие розы флористка поставила в зале только на сегодня. Мафия цветов не оставляет: в клубе работает второй убийца.", n:"Запасная карточка. Читайте, только если в игре есть Маньяк."}
+  {t:"На месте гибели лежат цветы. Мафия цветов не оставляет: в клубе работает второй убийца.", n:"Запасная карточка. Читайте, только если в игре есть Маньяк."}
 ];
 const C_NIGHT_SAY = {
   lover:"Просыпается Любовница. К кому она зайдёт в гримёрку этой ночью?",
   mafia:"Просыпается «Семья» и тот, кто числится среди неё своим. Выберите, кто увидел слишком много.",
-  maniac:"Просыпается тот, кто носит чёрную розу. Кого он выберет для последнего танца?",
+  maniac:"Просыпается тот, кто оставляет цветы. Кого он выберет для последнего танца?",
   doctor:"Просыпается Доктор. Кого вы осмотрите и не отойдёте от него до утра?",
   sheriff:"Просыпается Оперативник под прикрытием. Чью личность вы проверите? Ответ покажите жестом."
 };
 const C_DEATH = {
   "мафией":"Нашли в служебном коридоре. Выглядит как несчастный случай: оступился на лестнице. Но следов его обуви на ступенях нет.",
-  "маньяком":"Найден в гримёрке перед зеркалом. На груди лежит чёрная роза."
+  "маньяком":"Найден в гримёрке перед зеркалом. На груди лежат цветы."
 };
 const C_FINALS = {
   "Мирные жители":"Утром ледяная корка трескается, на мост выходят снегоуборочные машины. Полиция входит в клуб и находит в двойном дне старой шкатулки кассовую книгу №2. Рудина задерживают у выхода: в кармане у него билет на самолёт в один конец. Тихомиров рисковал не зря.",
@@ -2085,6 +2132,9 @@ function castFor(comp,sc){
   }
   let evil=take.filter(c=>c.role==="mafia"||c.role==="maniac");
   let civs=by("civ"), order=[];
+  // улика маньяка остаётся на каждой его жертве: её двойник среди мирных нужнее всего
+  let sig=take.filter(c=>c.role==="maniac").flatMap(m=>m.tells.filter(t=>!take.some(x=>x.role==="mafia"&&x.tells.includes(t))));
+  civs.forEach(c=>{ if(c.tells.some(t=>sig.includes(t))&&!order.includes(c)) order.push(c); });
   evil.forEach(e=>e.tells.forEach(t=>civs.forEach(c=>{ if(c.tells.includes(t)&&!order.includes(c)) order.push(c); })));
   civs.forEach(c=>{ if(!order.includes(c)) order.push(c); });
   let nCiv=comp.civ||0;
