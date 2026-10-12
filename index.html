@@ -984,6 +984,21 @@ function randomRoles(){
   buzz(30); saveGame(); render();
 }
 
+// раздача с телефона (режим «Без сюжета»): все роли случайно, телефон по кругу
+const ROLE_HINT={
+  mafia:"Ночью просыпаетесь вместе с мафией и выбираете жертву. Днём притворяйтесь мирным.",
+  agent:"Ночью просыпаетесь с мафией, и она считает вас своим. Но играете вы за город.",
+  sheriff:"Ночью проверяете одного игрока: ведущий жестом покажет, мафия ли он.",
+  doctor:"Ночью выбираете, кого спасти от смерти.",
+  lover:"Ночью заходите к одному игроку: до утра он ничего не делает, и его нельзя убить.",
+  maniac:"Вы играете один. Ночью убиваете кого захотите. Побеждаете, если останетесь вдвоём с кем-то.",
+  civ:"Ночью спите. Днём ищите мафию и голосуйте."
+};
+function phoneDeal(){
+  let go=()=>{ G.players.forEach(p=>p.role=null); randomRoles(); REVEAL={i:0,shown:false,phone:true}; drawReveal(); };
+  if(G.players.some(p=>p.role)) askConfirm("Раздать все роли заново случайным образом?",go,"Раздать");
+  else go();
+}
 // показ ролей: телефон передают по кругу
 let REVEAL=null;
 function revealRoles(){ REVEAL={i:0,shown:false}; drawReveal(); }
@@ -994,14 +1009,14 @@ function drawReveal(){
   let o=document.getElementById("revealOverlay"); if(o) o.remove();
   if(!REVEAL) return;
   let p=G.players[REVEAL.i];
-  if(!p){ REVEAL=null; showNotice("Все игроки узнали роли. Заберите телефон."); return; }
+  if(!p){ let ph=REVEAL.phone; REVEAL=null; showNotice(ph?"Все узнали свои роли. Верните телефон ведущему.":"Все игроки узнали роли. Заберите телефон."); return; }
   let r=p.role||"civ";
   let h='<div id="revealOverlay" class="ovl reveal" role="dialog" aria-modal="true"><div class="glass center" style="max-width:420px;margin:8vh auto 0">';
   h+='<div class="stepnum">Игрок '+(REVEAL.i+1)+' из '+G.players.length+'</div>';
   if(!REVEAL.shown){
     h+='<p class="muted">Передайте телефон игроку</p><div class="reveal-name">'+seatTag(p)+esc(p.name)+'</div><button class="big primary" onclick="revealShow()">Показать мою роль</button>';
   } else {
-    h+='<p class="muted">'+esc(p.name)+', ваша роль:</p><div class="reveal-role t-'+ROLES[r].team+'">'+roleSvg(r)+'<span>'+ROLES[r].name+'</span></div><button class="big primary" onclick="revealNext()">Скрыть и передать дальше</button>';
+    h+='<p class="muted">'+esc(p.name)+', ваша роль:</p><div class="reveal-role t-'+ROLES[r].team+'">'+roleSvg(r)+'<span>'+ROLES[r].name+'</span></div>'+(ROLE_HINT[r]?'<p style="margin:-8px 0 18px;line-height:1.45;color:var(--ink)">'+ROLE_HINT[r]+'</p>':'')+'<p class="muted" style="margin:0 0 14px">Запомните роль и никому не показывайте экран.</p><button class="big primary" onclick="revealNext()">Скрыть и передать дальше</button>';
   }
   h+='<button class="ghost" onclick="revealStop()">Прервать</button></div></div>';
   document.body.insertAdjacentHTML("beforeend",h);
@@ -1650,9 +1665,13 @@ function renderRoles(app){
 
   let allAssigned = specialRoles.every(r=>(assignedCounts[r]||0)===poolCounts[r]);
 
+  let noScen=curScenId()==="none";
   let h='<h1>Раздача ролей</h1>';
-  h+='<div class="glass"><p class="muted">Назначьте каждую роль игроку. Мирные жители назначаются автоматически всем оставшимся.</p>';
-  if(!allAssigned) h+='<button class="primary" style="margin:12px 0 0" onclick="randomRoles()">Раздать оставшиеся случайно</button>';
+  if(noScen){
+    h+='<div class="glass"><h2>Раздать с телефона</h2><p class="muted">Приложение случайно назначит роли. Передавайте телефон по кругу: каждый нажимает «Показать мою роль», запоминает её и передаёт дальше.</p><button class="big primary" style="margin:12px 0 0" onclick="phoneDeal()">Раздать роли с телефона</button></div>';
+  }
+  h+='<div class="glass"><p class="muted">'+(noScen?'Или назначьте роли вручную.':'Отметьте, у кого какая роль по карточкам персонажей.')+' Мирные жители назначаются автоматически всем оставшимся.</p>';
+  if(!allAssigned&&noScen) h+='<button class="primary" style="margin:12px 0 0" onclick="randomRoles()">Раздать оставшиеся случайно</button>';
   h+='<button class="ghost" style="margin:10px 0 0" onclick="showRules()">Правила стола и приметы</button>';
   h+='</div>';
 
@@ -1693,7 +1712,7 @@ function renderRoles(app){
   h+='</div>';
 
   if(allAssigned){
-    h+='<div class="glass center"><button class="ghost" onclick="revealRoles()">Показать роли</button><button class="big primary" onclick="confirmRoles()">Готово — начать игру</button></div>';
+    h+='<div class="glass center">'+(noScen?'<button class="ghost" onclick="revealRoles()">Показать роли ещё раз</button>':'')+'<button class="big primary" onclick="confirmRoles()">Готово — начать игру</button></div>';
   } else {
     h+='<div class="glass center muted">Назначьте все специальные роли</div>';
   }
